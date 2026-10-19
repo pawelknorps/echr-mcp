@@ -38,8 +38,20 @@ class EchrClient:
         self._client = httpx.AsyncClient(
             base_url=BASE_URL,
             headers={
+                # Cloudflare na HUDOC fingerprintuje KOMPLETNOSC naglowkow, nie UA:
+                # sam UA+Accept -> 403 "Just a moment..." (text/html, bez JS nie do przejscia),
+                # a ten sam httpx z pelnym zestawem przegladarki -> 200 JSON.
+                # Zweryfikowane 2026-10-19 (6/6 zapytan + .docx). Nie skracac tego zbioru.
                 "User-Agent": USER_AGENT,
                 "Accept": "application/json",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+                "sec-ch-ua": '"Chromium";v="126", "Not.A/Brand";v="24"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
             },
             timeout=timeout,
             follow_redirects=True,
@@ -66,7 +78,8 @@ class EchrClient:
                 continue
 
             # 403 z HTML-em "Just a moment..." to challenge Cloudflare, nie odmowa
-            # API - jest przejsciowy, wiec ponawiamy jak 429/503.
+            # API. Ten sam request go nie przejdzie (brak JS), ale ponowienie ma sens:
+            # challenge bywa tez przejsciowym rate-limitowym odbiciem przy burstach.
             challenged = resp.status_code == 403 and "text/html" in (
                 resp.headers.get("content-type") or ""
             )
