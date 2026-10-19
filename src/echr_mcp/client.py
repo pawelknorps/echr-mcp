@@ -65,7 +65,12 @@ class EchrClient:
                 await asyncio.sleep(2**attempt)
                 continue
 
-            if resp.status_code in (429, 503):
+            # 403 z HTML-em "Just a moment..." to challenge Cloudflare, nie odmowa
+            # API - jest przejsciowy, wiec ponawiamy jak 429/503.
+            challenged = resp.status_code == 403 and "text/html" in (
+                resp.headers.get("content-type") or ""
+            )
+            if resp.status_code in (429, 503) or challenged:
                 wait = resp.headers.get("Retry-After")
                 try:
                     delay = float(wait) if wait is not None else 2**attempt
